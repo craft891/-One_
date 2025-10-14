@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for a cleaner look */
+        #messages::-webkit-scrollbar {
+            width: 8px;
+        }
+        #messages::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        #messages::-webkit-scrollbar-thumb {
+            background-color: #94a3b8;
+            border-radius: 10px;
+            border: 3px solid #f1f5f9;
+        }
+        html, body {
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans flex flex-col h-full">
+
+    <header class="bg-white shadow-md p-4 flex justify-between items-center z-10">
+        <h1 class="text-xl font-bold text-slate-800">Render Chat</h1>
+        <div id="user-count-container" class="flex items-center space-x-2 bg-emerald-100 text-emerald-800 text-sm font-semibold px-3 py-1 rounded-full">
+            <span class="relative flex h-3 w-3">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            </span>
+            <span id="user-count">1</span>
+            <span>Online</span>
+        </div>
+    </header>
+
+    <main id="messages" class="flex-1 p-4 overflow-y-auto space-y-4">
+        <!-- Chat messages will be appended here -->
+    </main>
+
+    <footer class="bg-white p-4">
+        <form id="form" class="flex space-x-4">
+            <input id="input" autocomplete="off" class="flex-1 border border-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="Type a message..." />
+            <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">Send</button>
+        </form>
+    </footer>
+
+    <!-- Include the Socket.IO client library -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const messages = document.getElementById('messages');
+        const userCount = document.getElementById('user-count');
+        const chatHistoryKey = 'chatHistory';
+
+        // Function to add a message to the UI
+        const addMessage = (msg, type = 'received') => {
+            const item = document.createElement('div');
+            item.classList.add('flex', 'items-end', 'max-w-xs', 'md:max-w-md');
+
+            if (type === 'sent') {
+                item.classList.add('ml-auto', 'justify-end');
+                item.innerHTML = `<div class="bg-blue-600 text-white p-3 rounded-l-lg rounded-br-lg shadow">
+                                    <p class="text-sm">${msg.text}</p>
+                                  </div>`;
+            } else {
+                item.classList.add('mr-auto');
+                item.innerHTML = `<div class="bg-white p-3 rounded-r-lg rounded-bl-lg shadow">
+                                    <p class="text-sm text-slate-700">${msg.text}</p>
+                                  </div>`;
+            }
+            messages.appendChild(item);
+            messages.scrollTop = messages.scrollHeight;
+        };
+        
+        // Function to save history to localStorage
+        const saveHistory = (msg) => {
+            const history = JSON.parse(localStorage.getItem(chatHistoryKey)) || [];
+            history.push(msg);
+            // Keep history to a reasonable size
+            if (history.length > 100) {
+                history.shift();
+            }
+            localStorage.setItem(chatHistoryKey, JSON.stringify(history));
+        };
+        
+        // Load chat history from localStorage on page load
+        const loadHistory = () => {
+             const history = JSON.parse(localStorage.getItem(chatHistoryKey)) || [];
+             history.forEach(msg => addMessage(msg, msg.type));
+        };
+        
+        loadHistory();
+
+        // When the form is submitted, send the message
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (input.value) {
+                const message = { text: input.value, type: 'sent' };
+                socket.emit('chat message', message); // Send to server
+                addMessage(message, 'sent'); // Add to our UI
+                saveHistory(message); // Save to our history
+                input.value = '';
+            }
+        });
+
+        // When a message is received from the server
+        socket.on('chat message', (msg) => {
+            const receivedMessage = { ...msg, type: 'received' };
+            addMessage(receivedMessage, 'received');
+            saveHistory(receivedMessage);
+        });
+
+        // When the user count is updated
+        socket.on('user count', (count) => {
+            userCount.textContent = count;
+        });
+    </script>
+</body>
+</html>
