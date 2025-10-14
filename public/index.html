@@ -3,124 +3,230 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Chat</title>
+    <title>_</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Custom scrollbar for a cleaner look */
-        #messages::-webkit-scrollbar {
-            width: 8px;
-        }
-        #messages::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        #messages::-webkit-scrollbar-thumb {
-            background-color: #94a3b8;
-            border-radius: 10px;
-            border: 3px solid #f1f5f9;
-        }
-        html, body {
-            height: 100%;
-        }
+        #messages::-webkit-scrollbar { width: 8px; }
+        #messages::-webkit-scrollbar-track { background: #f1f5f9; }
+        #messages::-webkit-scrollbar-thumb { background-color: #94a3b8; border-radius: 10px; border: 3px solid #f1f5f9; }
+        html, body { height: 100%; }
+        .hidden { display: none; }
     </style>
 </head>
 <body class="bg-slate-100 font-sans flex flex-col h-full">
 
-    <header class="bg-white shadow-md p-4 flex justify-between items-center z-10">
-        <h1 class="text-xl font-bold text-slate-800">Render Chat</h1>
-        <div id="user-count-container" class="flex items-center space-x-2 bg-emerald-100 text-emerald-800 text-sm font-semibold px-3 py-1 rounded-full">
-            <span class="relative flex h-3 w-3">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-            <span id="user-count">1</span>
-            <span>Online</span>
+    <!-- Login Modal -->
+    <div id="login-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-sm">
+            <h2 class="text-2xl font-bold text-center text-slate-800 mb-6">Choose your Avatar</h2>
+            <div id="avatar-options" class="flex justify-center space-x-4 mb-6">
+                <!-- Avatar options will be injected here by JS -->
+            </div>
+            <input id="username-input" class="w-full border border-slate-300 rounded-lg px-4 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your username" required>
+            <button id="join-chat-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition shadow focus:outline-none focus:ring-2 focus:ring-blue-500">Join Chat</button>
+            <p id="login-error" class="text-red-500 text-sm text-center mt-2 hidden"></p>
         </div>
-    </header>
+    </div>
 
-    <main id="messages" class="flex-1 p-4 overflow-y-auto space-y-4">
-        <!-- Chat messages will be appended here -->
-    </main>
+    <!-- Main Chat Interface -->
+    <div id="chat-container" class="flex flex-col h-full hidden">
+        <header class="bg-white shadow-md p-4 flex justify-between items-center z-10">
+            <h1 class="text-xl font-bold text-slate-800">Render Chat</h1>
+            <div id="user-count-container" class="flex items-center space-x-2 bg-emerald-100 text-emerald-800 text-sm font-semibold px-3 py-1 rounded-full">
+                <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                <span id="user-count">1</span>
+                <span>Online</span>
+            </div>
+        </header>
 
-    <footer class="bg-white p-4">
-        <form id="form" class="flex space-x-4">
-            <input id="input" autocomplete="off" class="flex-1 border border-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="Type a message..." />
-            <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">Send</button>
-        </form>
-    </footer>
+        <main id="messages" class="flex-1 p-4 overflow-y-auto space-y-4">
+            <!-- Chat messages will be appended here -->
+        </main>
 
-    <!-- Include the Socket.IO client library -->
+        <footer class="bg-white p-4">
+            <form id="form" class="flex items-center space-x-2">
+                <input type="file" id="image-input" class="hidden" accept="image/*">
+                <button type="button" id="image-btn" class="p-2 text-slate-500 hover:text-blue-600 rounded-full hover:bg-slate-100 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                </button>
+                <input id="input" autocomplete="off" class="flex-1 border border-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="Type a message..." />
+                <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg transition shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">Send</button>
+            </form>
+        </footer>
+    </div>
+
+    <!-- Socket.IO and App Logic -->
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
 
+        // UI Elements
+        const loginModal = document.getElementById('login-modal');
+        const chatContainer = document.getElementById('chat-container');
+        const avatarOptionsContainer = document.getElementById('avatar-options');
+        const usernameInput = document.getElementById('username-input');
+        const joinChatBtn = document.getElementById('join-chat-btn');
+        const loginError = document.getElementById('login-error');
+        
         const form = document.getElementById('form');
         const input = document.getElementById('input');
         const messages = document.getElementById('messages');
         const userCount = document.getElementById('user-count');
+        const imageBtn = document.getElementById('image-btn');
+        const imageInput = document.getElementById('image-input');
+
+        // App state
         const chatHistoryKey = 'chatHistory';
+        let currentUser = {};
+        
+        // Define some simple SVG avatars
+        const avatars = {
+            'avatar1': '<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#60a5fa"/><path d="M20 23c-4.42 0-8 1.79-8 4v3h16v-3c0-2.21-3.58-4-8-4z" fill="#fff"/><circle cx="20" cy="16" r="4" fill="#fff"/></svg>',
+            'avatar2': '<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#f87171"/><path d="M20 23c-4.42 0-8 1.79-8 4v3h16v-3c0-2.21-3.58-4-8-4z" fill="#fff"/><path d="M16 14 L24 18 L16 22 Z" fill="#fff"/></svg>',
+            'avatar3': '<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#4ade80"/><rect x="14" y="14" width="12" height="12" rx="2" fill="#fff"/></svg>',
+            'avatar4': '<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="#facc15"/><polygon points="20,10 25,20 20,30 15,20" fill="#fff"/></svg>',
+        };
 
-        // Function to add a message to the UI
-        const addMessage = (msg, type = 'received') => {
-            const item = document.createElement('div');
-            item.classList.add('flex', 'items-end', 'max-w-xs', 'md:max-w-md');
+        // Populate avatar choices
+        Object.keys(avatars).forEach(key => {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = avatars[key];
+            wrapper.id = key;
+            wrapper.classList.add('cursor-pointer', 'rounded-full', 'p-1', 'transition');
+            avatarOptionsContainer.appendChild(wrapper);
+            wrapper.addEventListener('click', () => {
+                document.querySelectorAll('#avatar-options div').forEach(el => el.classList.remove('ring-2', 'ring-blue-500'));
+                wrapper.classList.add('ring-2', 'ring-blue-500');
+                currentUser.avatar = key;
+            });
+        });
 
-            if (type === 'sent') {
-                item.classList.add('ml-auto', 'justify-end');
-                item.innerHTML = `<div class="bg-blue-600 text-white p-3 rounded-l-lg rounded-br-lg shadow">
-                                    <p class="text-sm">${msg.text}</p>
-                                  </div>`;
+        // Handle joining the chat
+        joinChatBtn.addEventListener('click', () => {
+            const username = usernameInput.value.trim();
+            if (username && currentUser.avatar) {
+                currentUser.username = username;
+                socket.emit('user joined', currentUser);
+                loginModal.classList.add('hidden');
+                chatContainer.classList.remove('hidden');
+                loadHistory();
             } else {
-                item.classList.add('mr-auto');
-                item.innerHTML = `<div class="bg-white p-3 rounded-r-lg rounded-bl-lg shadow">
-                                    <p class="text-sm text-slate-700">${msg.text}</p>
-                                  </div>`;
+                loginError.textContent = "Please enter a username and select an avatar.";
+                loginError.classList.remove('hidden');
             }
+        });
+
+        // --- Core Chat Functions ---
+
+        const addMessage = (msg, type) => {
+            const wrapper = document.createElement('div');
+            const isSent = type === 'sent';
+            
+            // Base classes for the message container
+            wrapper.classList.add('flex', 'items-start', 'gap-3', 'max-w-xs', 'md:max-w-md');
+            wrapper.classList.add(isSent ? 'ml-auto' : 'mr-auto');
+
+            let messageContent;
+            if (msg.image) {
+                messageContent = `<img src="${msg.image}" class="rounded-lg max-w-full h-auto cursor-pointer" onclick="window.open(this.src)">`;
+            } else {
+                messageContent = `<p class="text-sm break-words">${msg.text}</p>`;
+            }
+
+            const messageBubbleClasses = isSent ? 'bg-blue-600 text-white' : 'bg-white text-slate-700';
+            
+            const messageHTML = `
+                <div class="${isSent ? 'order-2' : 'order-1'}">
+                    ${avatars[msg.avatar]}
+                </div>
+                <div class="${isSent ? 'order-1' : 'order-2'}">
+                    <p class="text-xs font-bold mb-1 ${isSent ? 'text-right' : 'text-left'}">${isSent ? 'You' : msg.username}</p>
+                    <div class="p-3 rounded-lg shadow ${messageBubbleClasses}">
+                        ${messageContent}
+                    </div>
+                </div>
+            `;
+            
+            wrapper.innerHTML = messageHTML;
+            messages.appendChild(wrapper);
+            messages.scrollTop = messages.scrollHeight;
+        };
+
+        const addSystemMessage = (text) => {
+            const item = document.createElement('div');
+            item.classList.add('text-center', 'text-sm', 'text-slate-500', 'my-2');
+            item.textContent = text;
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         };
         
-        // Function to save history to localStorage
         const saveHistory = (msg) => {
-            const history = JSON.parse(localStorage.getItem(chatHistoryKey)) || [];
+            let history = JSON.parse(localStorage.getItem(chatHistoryKey)) || [];
             history.push(msg);
-            // Keep history to a reasonable size
-            if (history.length > 100) {
-                history.shift();
-            }
+            if (history.length > 100) history.shift();
             localStorage.setItem(chatHistoryKey, JSON.stringify(history));
         };
         
-        // Load chat history from localStorage on page load
         const loadHistory = () => {
              const history = JSON.parse(localStorage.getItem(chatHistoryKey)) || [];
-             history.forEach(msg => addMessage(msg, msg.type));
+             history.forEach(msg => {
+                const type = (msg.username === currentUser.username && msg.avatar === currentUser.avatar) ? 'sent' : 'received';
+                addMessage(msg, type);
+             });
         };
         
-        loadHistory();
+        // --- Event Listeners ---
 
-        // When the form is submitted, send the message
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             if (input.value) {
-                const message = { text: input.value, type: 'sent' };
-                socket.emit('chat message', message); // Send to server
-                addMessage(message, 'sent'); // Add to our UI
-                saveHistory(message); // Save to our history
+                const message = { ...currentUser, text: input.value };
+                socket.emit('chat message', message);
+                addMessage(message, 'sent');
+                saveHistory(message);
                 input.value = '';
             }
         });
 
-        // When a message is received from the server
-        socket.on('chat message', (msg) => {
-            const receivedMessage = { ...msg, type: 'received' };
-            addMessage(receivedMessage, 'received');
-            saveHistory(receivedMessage);
+        imageBtn.addEventListener('click', () => imageInput.click());
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const message = { ...currentUser, image: event.target.result };
+                    socket.emit('chat image', message);
+                    addMessage(message, 'sent');
+                    saveHistory(message);
+                };
+                reader.readAsDataURL(file);
+                imageInput.value = ''; // Reset input
+            }
         });
 
-        // When the user count is updated
+        socket.on('chat message', (msg) => {
+            addMessage(msg, 'received');
+            saveHistory(msg);
+        });
+
+        socket.on('chat image', (msg) => {
+            addMessage(msg, 'received');
+            saveHistory(msg);
+        });
+
+        socket.on('system message', (text) => {
+            addSystemMessage(text);
+        });
+
         socket.on('user count', (count) => {
             userCount.textContent = count;
         });
     </script>
 </body>
 </html>
+
